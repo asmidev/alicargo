@@ -1,0 +1,1 @@
+ALTER TABLE public.variant_sku_mappings DROP CONSTRAINT IF EXISTS unique_variant_store;

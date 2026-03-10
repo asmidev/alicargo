@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="uz">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>AliBrand.uz — Sifatli mahsulotlar, eng yaxshi narxda</title>
+    <meta name="description" content="AliBrand.uz — Xitoydan sifatli mahsulotlar. Toshkent bo'ylab tez yetkazish. 1000+ mahsulot eng arzon narxlarda." />
+    <meta name="author" content="AliBrand" />
+    
+    <!-- PWA Theme Colors -->
+    <meta name="theme-color" content="#E8B923" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1A1D29" media="(prefers-color-scheme: dark)" />
+    
+    <!-- iOS PWA Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AliBrand" />
+    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+    
+    <!-- iOS Splash Screens -->
+    <link rel="apple-touch-startup-image" href="/pwa-512x512.png" />
+    
+    <!-- Android/Chrome PWA -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    
+    <!-- Favicon and Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
+    <link rel="icon" type="image/png" href="/app-icon.png" />
+
+    <!-- Mobile Web App Optimizations -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="HandheldFriendly" content="true" />
+    
+    <!-- Prevent zooming on input focus (iOS) -->
+    <meta name="touch-callout" content="none" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="AliBrand.uz — Sifatli mahsulotlar, eng yaxshi narxda" />
+    <meta property="og:description" content="AliBrand.uz — Xitoydan sifatli mahsulotlar. Toshkent bo'ylab tez yetkazish." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/pwa-512x512.png" />
+    <meta property="og:site_name" content="AliBrand.uz" />
+    <meta property="og:url" content="https://alicargo-joy.lovable.app" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="AliBrand CRM" />
+    <meta name="twitter:description" content="Logistics Platform for China-Uzbekistan operations" />
+    <meta name="twitter:image" content="/pwa-512x512.png" />
+    
+    <style>
+      /* Safe area insets for notched devices */
+      :root {
+        --sat: env(safe-area-inset-top);
+        --sar: env(safe-area-inset-right);
+        --sab: env(safe-area-inset-bottom);
+        --sal: env(safe-area-inset-left);
+      }
+      
+      /* Prevent pull-to-refresh on mobile */
+      html, body {
+        overscroll-behavior-y: contain;
+      }
+      
+      /* Touch highlight color */
+      * {
+        -webkit-tap-highlight-color: rgba(232, 185, 35, 0.2);
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,178 @@
+project_id = "qnbxnldkzuoydqgzagvu"
+
+[functions.exchange-rates]
+verify_jwt = false
+
+[functions.send-notification]
+verify_jwt = true
+
+[functions.telegram-bot]
+verify_jwt = false
+
+[functions.send-telegram-alert]
+verify_jwt = false
+
+[functions.calculate-eta]
+verify_jwt = true
+
+[functions.set-telegram-webhook]
+verify_jwt = false
+
+[functions.manage-users]
+verify_jwt = true
+
+[functions.test-gemini]
+verify_jwt = false
+
+[functions.analyze-defect]
+verify_jwt = true
+
+[functions.ml-eta-prediction]
+verify_jwt = true
+
+[functions.ai-financial-analysis]
+verify_jwt = true
+
+[functions.ali-ai-brain]
+verify_jwt = true
+
+[functions.ali-ai-tts]
+verify_jwt = true
+
+[functions.ali-ai-insights-worker]
+verify_jwt = false
+
+[functions.ali-ai-digest]
+verify_jwt = true
+
+[functions.uzum-sync]
+verify_jwt = false
+
+[functions.uzum-orders]
+verify_jwt = false
+
+[functions.uzum-products]
+verify_jwt = false
+
+[functions.uzum-stocks]
+verify_jwt = false
+
+[functions.uzum-finance]
+verify_jwt = false
+
+[functions.yandex-sync]
+verify_jwt = false
+
+[functions.marketplace-health]
+verify_jwt = false
+
+[functions.uzum-diagnostic]
+verify_jwt = false
+
+[functions.uzum-competitor-analysis]
+verify_jwt = false
+
+[functions.ai-price-optimizer]
+verify_jwt = true
+
+[functions.marketplace-ai-analytics]
+verify_jwt = true
+
+[functions.marketplace-daily-digest]
+verify_jwt = true
+
+[functions.yandex-orders]
+verify_jwt = false
+
+[functions.yandex-products]
+verify_jwt = false
+
+[functions.yandex-stocks]
+verify_jwt = false
+
+[functions.yandex-returns]
+verify_jwt = false
+
+[functions.yandex-finance]
+verify_jwt = false
+
+[functions.yandex-competitor-analysis]
+verify_jwt = false
+
+[functions.yandex-sale-boost]
+verify_jwt = false
+
+[functions.yandex-seo-optimizer]
+verify_jwt = false
+
+[functions.yandex-demand-forecast]
+verify_jwt = false
+
+[functions.marketplace-auto-sync]
+verify_jwt = false
+
+[functions.uzum-sale-boost]
+verify_jwt = false
+
+[functions.uzum-seo-optimizer]
+verify_jwt = false
+
+[functions.uzum-demand-forecast]
+verify_jwt = false
+
+[functions.uzum-returns]
+verify_jwt = false
+
+[functions.ai-chat-assistant]
+verify_jwt = true
+
+[functions.ai-visual-search]
+verify_jwt = true
+
+[functions.calculate-financial-period]
+verify_jwt = true
+
+[functions.process-stock-queue]
+verify_jwt = false
+
+[functions.tashkent-stock-sync]
+verify_jwt = false
+
+[functions.sync-marketplace-finance]
+verify_jwt = false
+
+[functions.yandex-questions]
+verify_jwt = false
+
+[functions.yandex-supply-requests]
+verify_jwt = false
+
+[functions.yandex-warehouses]
+verify_jwt = false
+
+[functions.uzum-fbo-diagnostic]
+verify_jwt = false
+
+[functions.listing-ai-analysis]
+verify_jwt = false
+
+[functions.daily-finance-summary]
+verify_jwt = false
+
+[functions.generate-store-descriptions]
+verify_jwt = false
+
+[functions.mirror-product-images]
+verify_jwt = false
+
+[functions.full-resync]
+verify_jwt = false
+
+[functions.paynet-payment]
+verify_jwt = false
+
+[functions.uzum-fbs-returns]
+verify_jwt = false
+
+[functions.uzum-supply-invoices]
+verify_jwt = false

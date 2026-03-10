@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_listings_store_barcode_unique;

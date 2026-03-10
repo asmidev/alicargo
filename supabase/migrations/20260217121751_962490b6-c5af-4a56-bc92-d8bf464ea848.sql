@@ -1,0 +1,1 @@
+ALTER TABLE exchange_rates_history ADD COLUMN IF NOT EXISTS is_manual BOOLEAN DEFAULT false;
