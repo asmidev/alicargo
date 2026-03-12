@@ -154,16 +154,14 @@ function extractReturnItemsFromText(text: string): ScannedItemResult[] {
   
   const lines = text.split('\n');
   
-  for (const line of lines) {
-    // Shtrix-kod odatda 12-14 xonali son bo'ladi.
-    // Tesseract oraliqqa bo'shliq yoki tire qo'yib yuborishi mumkin. 
-    // Faqat uzluksiz raqamlarni qidiramiz (eng kamida 7 talik raqamdan oshgani shtrix kod bo'lish ehtimoli bor, ayniqsa 100...)
-    
-    // 1. Asl qatordan aniq 10-14 raqamli shtrixni qidirish (atrofida boshqa past/baland raqam bo'lmasligi kerak)
-    let rawBarcodeMatch = line.match(/(?<!\d)(\d{10,14})(?!\d)/);
+  for (let line of lines) {
+    // 1. Matndan barcha bo'shliqlarni va tire (-) larni olib tashlab, toza raqamli qismlarni qidiramiz
+    // OCR xatolarini hisobga olib, probellar va tinish belgilarisiz toza string ustida ishlaymiz
+    let cleanLine = line.replace(/[-\s_]/g, '');
+    let rawBarcodeMatch = cleanLine.match(/(\d{8,14})/); // Shtrix kod kamida 8, ko'pi bilan 14 raqam
     let rawBarcode = rawBarcodeMatch ? rawBarcodeMatch[1] : null;
 
-    if (!rawBarcode) {
+    if (!rawBarcode || rawBarcode.length < 8) {
       // 2. Extimol Tesseract kelib chiqish xatosi (O ni 0 o'qish, G ni 1 va h.k) bo'lishi mumkin
       const words = line.split(/\s+/);
       for (const w of words) {
@@ -197,27 +195,18 @@ function extractReturnItemsFromText(text: string): ScannedItemResult[] {
       }
     }
 
-    if (!rawBarcode) continue;
-    
-    // Uzum barcode lar asosan 13 xonali 1000... biladi. Agar Tesseract 1 raqamini o'qimay 12-11 raqamli 000 qilgan bo'lsa uni ta'mirlaymiz
-    if (rawBarcode.length === 12 && rawBarcode.startsWith('00')) {
-       rawBarcode = '1' + rawBarcode;
-    } else if (rawBarcode.length === 11 && rawBarcode.startsWith('000')) {
-       rawBarcode = '10' + rawBarcode;
+    // Uzum yoki Yandex barcode lari haqida qayta ishlash
+    if (rawBarcode.startsWith('00') && rawBarcode.length >= 10) {
+       rawBarcode = '1' + rawBarcode; // Ba'zan boshidagi 1 kesilib qoladi
     }
     
-    // Qolgan raqamlardan miqdorni topamiz
-    // Bilib olishning eng yaxshi usuli: Shtrix-kod raqamini olib tashlab, oxiriga berilgan qisqa raqam
-    const withoutBarcode = line.replace(rawBarcode, '');
-    const numbers: string[] = withoutBarcode.match(/\b\d+\b/g) || [];
+    // Soni (Kol-vo) ni izlash. Barcha topilgan raqamlar ro'yxati (asl liniyadan olinadi, probel olib tashlanganidan emas)
+    const withoutBarcode = line.replace(/[-\s_]/g, '').replace(rawBarcode, '');
+    const numberMatches = line.match(/\b\d+\b/g) || [];
+    const qtyCandidates = numberMatches.map(n => parseInt(n, 10)).filter(n => !isNaN(n) && n > 0 && n < 10000 && n.toString() !== rawBarcode);
     
     let quantity = 1;
 
-    // Soni (Kol-vo) odatda oxirgi ehtimolga yaqin kichik raqamlar bo'ladi
-    // Masalan: 1  Atir   1000005...   2  19800
-    // Shunda numbers = ['1', '2', '19800']
-    const qtyCandidates = numbers.map(n => parseInt(n, 10)).filter(n => !isNaN(n) && n > 0 && n < 10000);
-    
     if (qtyCandidates.length > 0) {
       // Agar hujjat ro'yxat tartibida kelsa 1, 2, 3.. bo'lishi mumkin eng birinchi tartib raqami, oxiridagi summa.
       // Ehtimoli bo'yicha e'lon qilamiz: Odatda miqdor qisqa bo'lib o'rta/oxirlarda keladi
