@@ -13,6 +13,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { useFinanceCurrency } from '@/contexts/FinanceCurrencyContext';
 import { useToast } from '@/hooks/use-toast';
+import { useStoreDistribution } from '@/hooks/useStoreDistribution';
 import * as XLSX from 'xlsx';
 import { DateRange } from 'react-day-picker';
 
@@ -31,19 +32,20 @@ interface ReportRow {
   tax4pct: number;
   profitBeforeTax: number;
   profitPerUnit: number;
-  profit25: number;
+  profitManaged: number;
   salesCount: number;
   totalProfit: number;
-  totalProfit25: number;
+  totalProfitManaged: number;
   isFallbackPrice: boolean;
 }
 
 export function AccountingReportTab({ }: AccountingReportTabProps) {
   const { usdToUzs, cnyToUzs } = useFinanceCurrency();
   const { toast } = useToast();
+  const { getDistributionForStore } = useStoreDistribution();
   const now = new Date();
   const [selectedStore, setSelectedStore] = useState<string>('');
-  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: new Date(now.getFullYear(), now.getMonth(), 1),
     to: now,
   });
@@ -73,6 +75,12 @@ export function AccountingReportTab({ }: AccountingReportTabProps) {
   });
 
   const selectedStoreName = stores?.find(s => s.id === selectedStore)?.name || '';
+
+  // Determine profit distribution % for manager/investor logic
+  const distribution = getDistributionForStore(selectedStore);
+  const isBMStore = (distribution?.investor_share_pct ?? 0) > 0;
+  const managedTotalPct = isBMStore ? 5 : 25;
+  const managedTotalPctLabel = isBMStore ? '5%' : '25%';
 
 
   const generateReport = async () => {
@@ -134,7 +142,8 @@ export function AccountingReportTab({ }: AccountingReportTabProps) {
             ? Number(item.deliveryFee)
             : (orderDeliveryCost / totalItemsInOrder) * qty;
 
-          skuMap[sku].totalPrice += (Number(item.price) || 0) * qty;
+          const itemPrice = Number(item.sellPrice) || Number(item.price) || 0;
+          skuMap[sku].totalPrice += itemPrice * qty;
           skuMap[sku].totalCommission += itemCommission;
           skuMap[sku].totalDeliveryFee += itemDeliveryFee;
           skuMap[sku].totalQuantity += qty;
@@ -237,21 +246,25 @@ export function AccountingReportTab({ }: AccountingReportTabProps) {
       if (allProductIds.length > 0) {
         const productItems = await fetchAllRows(
           supabase.from('product_items')
-            .select('product_id, variant_id, unit_cost, domestic_shipping_cost, international_shipping_cost')
+            .select('product_id, variant_id, unit_cost, unit_cost_currency, domestic_shipping_cost, international_shipping_cost')
             .in('product_id', allProductIds)
             .not('unit_cost', 'is', null)
-            .gt('unit_cost', 0)
         );
 
         productItems.forEach(item => {
           const varKey = item.variant_id as string;
           const prodKey = item.product_id as string;
 
+          // Convert unit_cost to UZS based on currency
+          const currency = item.unit_cost_currency || 'CNY';
+          const rate = currency === 'CNY' ? cnyToUzs : currency === 'USD' ? usdToUzs : 1;
+          const unitCostUzs = (Number(item.unit_cost) || 0) * rate;
+
           if (varKey) {
             if (!avgCostsByKey[varKey]) avgCostsByKey[varKey] = { domestic: 0, intl: 0, unitCost: 0, count: 0 };
             avgCostsByKey[varKey].domestic += Number(item.domestic_shipping_cost) || 0;
             avgCostsByKey[varKey].intl += Number(item.international_shipping_cost) || 0;
-            avgCostsByKey[varKey].unitCost += Number(item.unit_cost) || 0;
+            avgCostsByKey[varKey].unitCost += unitCostUzs;
             avgCostsByKey[varKey].count += 1;
           }
 
@@ -259,7 +272,7 @@ export function AccountingReportTab({ }: AccountingReportTabProps) {
             if (!avgCostsByProduct[prodKey]) avgCostsByProduct[prodKey] = { domestic: 0, intl: 0, unitCost: 0, count: 0 };
             avgCostsByProduct[prodKey].domestic += Number(item.domestic_shipping_cost) || 0;
             avgCostsByProduct[prodKey].intl += Number(item.international_shipping_cost) || 0;
-            avgCostsByProduct[prodKey].unitCost += Number(item.unit_cost) || 0;
+            avgCostsByProduct[prodKey].unitCost += unitCostUzs;
             avgCostsByProduct[prodKey].count += 1;
           }
         });
@@ -297,19 +310,27 @@ export function AccountingReportTab({ }: AccountingReportTabProps) {
         const product = productId ? productsMap[productId] : null;
 
         // Tannarx fallback chain:
-        // 1. variant.cost_price (valyutaga qarab konvertatsiya)
-        // 2. product.cost_price
-        // 3. listing price * 0.4 (taxminiy)
+        // 1. product_items (real kelgan tovarlar o'rtachasi - UZS da)
+        // 2. variant.cost_price (valyutaga qarab konvertatsiya)
+        // 3. product.cost_price
+        // 4. listing price * 0.4 (taxminiy)
         let chinaPrice = 0;
         let isFallbackPrice = false;
-        const variantCost = variant?.costPrice || 0;
-        if (variantCost > 0) {
+        const avgShipping = getAvgShipping(variantId, productId);
+        
+        if ((avgShipping.avgUnitCost ?? 0) > 0) {
+          chinaPrice = avgShipping.avgUnitCost!;
+        } else if (variant?.costPrice && variant.costPrice > 0) {
           const cur = variant!.costPriceCurrency;
-          if (cur === 'CNY') chinaPrice = variantCost * cnyToUzs;
-          else if (cur === 'USD') chinaPrice = variantCost * usdToUzs;
-          else chinaPrice = variantCost; // UZS
+          if (cur === 'CNY') chinaPrice = variant.costPrice * cnyToUzs;
+          else if (cur === 'USD') chinaPrice = variant.costPrice * usdToUzs;
+          else chinaPrice = variant.costPrice; // UZS
         } else if (product?.costPrice && product.costPrice > 0) {
-          chinaPrice = product.costPrice;
+          // Check product purchase currency if available, or assume UZS fallback
+          const pCur = (product as any).purchase_currency || 'UZS';
+          if (pCur === 'CNY') chinaPrice = product.costPrice * cnyToUzs;
+          else if (pCur === 'USD') chinaPrice = product.costPrice * usdToUzs;
+          else chinaPrice = product.costPrice;
         } else {
           // Fallback: listing narxining 40%
           const listingPrice = listingPriceMap[sku] || 0;
@@ -321,7 +342,6 @@ export function AccountingReportTab({ }: AccountingReportTabProps) {
 
         // Cargo price logic matching Toshkent Ombori
         let cargoPrice = 0;
-        const avgShipping = getAvgShipping(variantId, productId);
 
         let avgDomesticCny = 0;
         let avgIntlUsd = 0;
@@ -376,7 +396,8 @@ export function AccountingReportTab({ }: AccountingReportTabProps) {
         const tax4pct = Math.max(0, taxBase * 0.04);
         const profitBeforeTax = platformIncome - avgDeliveryFee - tanNarx;
         const profitPerUnit = profitBeforeTax - tax4pct;
-        const profit25 = profitPerUnit * 0.25;
+        const profitManagedUnit = profitPerUnit * 0.25; // Always 25% as requested
+        const profitManagedTotal = profitPerUnit * (managedTotalPct / 100);
 
         return {
           sku,
@@ -391,10 +412,10 @@ export function AccountingReportTab({ }: AccountingReportTabProps) {
           tax4pct: Math.round(tax4pct),
           profitBeforeTax: Math.round(profitBeforeTax),
           profitPerUnit: Math.round(profitPerUnit),
-          profit25: Math.round(profit25),
+          profitManaged: Math.round(profitManagedUnit),
           salesCount: data.totalQuantity,
           totalProfit: Math.round(profitPerUnit * data.totalQuantity),
-          totalProfit25: Math.round(profitPerUnit * data.totalQuantity * 0.25),
+          totalProfitManaged: Math.round(profitManagedTotal * data.totalQuantity),
           isFallbackPrice,
         };
       });
@@ -432,14 +453,14 @@ export function AccountingReportTab({ }: AccountingReportTabProps) {
   const exportToExcel = () => {
     if (!reportData.length) return;
 
-    const headers = ['SKU', 'Xitoy narxi', 'Kargo narxi', 'Tan narxi', 'Sotuv narxi', 'Komissiya %', 'Komissiya summa', 'Logistika', 'Platformadan tushadi', 'NALOG 4%', 'Nalogsiz', 'Dona foyda', 'Dona foyda 25%', 'Sotuvlar soni', 'Jami foyda', 'Jami foydaning 25%'];
+    const headers = ['SKU', 'Xitoy narxi', 'Kargo narxi', 'Tan narxi', 'Sotuv narxi', 'Komissiya %', 'Komissiya summa', 'Logistika', 'Platformadan tushadi', 'NALOG 4%', 'Nalogsiz', 'Dona foyda', 'Dona foyda 25%', 'Sotuvlar soni', 'Jami foyda', `Jami foyda ${managedTotalPctLabel}`];
 
     const wsData = [
       headers,
       ...reportData.map(r => [
         r.sku, r.chinaPrice, r.cargoPrice, r.tanNarx, r.sotuvNarx,
         r.commissionPct, r.commissionSum, r.logistics, r.platformIncome,
-        r.tax4pct, r.profitBeforeTax, r.profitPerUnit, r.profit25, r.salesCount, r.totalProfit, r.totalProfit25,
+        r.tax4pct, r.profitBeforeTax, r.profitPerUnit, r.profitManaged, r.salesCount, r.totalProfit, r.totalProfitManaged,
       ]),
     ];
 
@@ -448,7 +469,7 @@ export function AccountingReportTab({ }: AccountingReportTabProps) {
       wsData.push([
         `JAMI: ${selectedStoreName}`, '', '', '', totals.totalRevenue,
         '', totals.totalCommission, totals.totalLogistics, '',
-        totals.totalTax, '', '', '', totals.salesCount, totals.totalProfit, totals.totalProfit * 0.25,
+        totals.totalTax, '', '', '', totals.salesCount, totals.totalProfit, totals.totalProfit * (managedTotalPct / 100),
       ]);
     }
 
@@ -566,7 +587,7 @@ export function AccountingReportTab({ }: AccountingReportTabProps) {
                   <TableHead className="text-right">Dona foyda 25%</TableHead>
                   <TableHead className="text-right">Soni</TableHead>
                   <TableHead className="text-right">Jami foyda</TableHead>
-                  <TableHead className="text-right">Jami foydaning 25%</TableHead>
+                  <TableHead className="text-right">Jami foyda {managedTotalPctLabel}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -588,15 +609,15 @@ export function AccountingReportTab({ }: AccountingReportTabProps) {
                     <TableCell className={`text-right tabular-nums font-medium ${row.profitPerUnit >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>
                       {fmt(row.profitPerUnit)}
                     </TableCell>
-                    <TableCell className={`text-right tabular-nums font-medium ${row.profit25 >= 0 ? 'text-amber-600' : 'text-destructive'}`}>
-                      {fmt(row.profit25)}
+                    <TableCell className={`text-right tabular-nums font-medium ${row.profitManaged >= 0 ? 'text-amber-600' : 'text-destructive'}`}>
+                      {fmt(row.profitManaged)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{row.salesCount}</TableCell>
                     <TableCell className={`text-right tabular-nums font-bold ${row.totalProfit >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>
                       {fmt(row.totalProfit)}
                     </TableCell>
-                    <TableCell className={`text-right tabular-nums font-bold ${row.totalProfit25 >= 0 ? 'text-amber-600' : 'text-destructive'}`}>
-                      {fmt(row.totalProfit25)}
+                    <TableCell className={`text-right tabular-nums font-bold ${row.totalProfitManaged >= 0 ? 'text-amber-600' : 'text-destructive'}`}>
+                      {fmt(row.totalProfitManaged)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -622,7 +643,7 @@ export function AccountingReportTab({ }: AccountingReportTabProps) {
                       {fmt(totals.totalProfit)}
                     </TableCell>
                     <TableCell className={`text-right tabular-nums ${totals.totalProfit >= 0 ? 'text-amber-600' : 'text-destructive'}`}>
-                      {fmt(Math.round(totals.totalProfit * 0.25))}
+                      {fmt(Math.round(totals.totalProfit * (managedTotalPct / 100)))}
                     </TableCell>
                   </TableRow>
                 </TableFooter>

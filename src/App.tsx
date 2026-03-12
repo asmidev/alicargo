@@ -81,6 +81,7 @@ const StoreAnalytics = lazy(() => import("./pages/crm/StoreAnalytics"));
 const AliAI = lazy(() => import("./pages/crm/AliAI"));
 const Settings = lazy(() => import("./pages/crm/Settings"));
 const StoreOrders = lazy(() => import("./pages/crm/StoreOrders"));
+const ArchiveBoxes = lazy(() => import("./pages/crm/ArchiveBoxes"));
 
 // Install page
 const Install = lazy(() => import("./pages/Install"));
@@ -174,6 +175,7 @@ const App = () => (
                       <Route path="verification-reports" element={<VerificationReports />} />
                       <Route path="products" element={<Products />} />
                       <Route path="boxes" element={<Boxes />} />
+                      <Route path="archive-boxes" element={<ArchiveBoxes />} />
                       <Route path="verification" element={<Verification />} />
                       <Route path="shipments" element={<Shipments />} />
                       <Route path="shipments/:shipmentId" element={<ShipmentDetail />} />

@@ -27,16 +27,7 @@ export default function Tracking() {
   // Role-based access control - most staff can view tracking
   const canAccess = isChiefManager || isChinaManager || isChinaStaff || isUzManager || isUzStaff || isMarketplaceManager || isSupport;
   
-  // Access denied check
-  if (!roleLoading && !canAccess) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-        <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
-        <h2 className="text-xl font-semibold text-foreground mb-2">Ruxsat yo'q</h2>
-        <p className="text-muted-foreground">Sizda kuzatuv sahifasiga kirish huquqi yo'q.</p>
-      </div>
-    );
-  }
+  // Access denied check will be handled below hooks
 
   const { data: trackingEvents, isLoading } = useQuery({
     queryKey: ['tracking-events-boxes'],
@@ -68,6 +59,7 @@ export default function Tracking() {
       
       return events || [];
     },
+    enabled: canAccess,
   });
 
   // Fetch statistics
@@ -122,6 +114,7 @@ export default function Tracking() {
         eventsByType,
       };
     },
+    enabled: canAccess,
   });
 
   const getEventIcon = (eventType: string) => {
@@ -192,6 +185,16 @@ export default function Tracking() {
     
     return true;
   }) || [];
+
+  if (!roleLoading && !canAccess) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
+        <h2 className="text-xl font-semibold text-foreground mb-2">Ruxsat yo'q</h2>
+        <p className="text-muted-foreground">Sizda kuzatuv sahifasiga kirish huquqi yo'q.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

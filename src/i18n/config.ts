@@ -56,6 +56,7 @@ const resources = {
       shipments: 'Jo\'natmalar',
       logistics: 'Logistika',
       tracking: 'Kuzatuv',
+      archive_boxes: 'Arxiv qutilar',
       users: 'Foydalanuvchilar',
       finance: 'Moliya',
       admin: 'Admin',

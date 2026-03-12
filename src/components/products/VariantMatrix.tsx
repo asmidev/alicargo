@@ -1,15 +1,14 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle2, XCircle } from "lucide-react";
-import { formatUZS } from "@/lib/utils";
-import { VariantSkuMapping } from "./VariantSkuMapping";
-import { useFinanceCurrency } from "@/contexts/FinanceCurrencyContext";
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useFinanceCurrency } from "@/contexts/FinanceCurrencyContext"
+import { formatUZS } from "@/lib/utils"
+import { CheckCircle2, XCircle } from "lucide-react"
+import { VariantSkuMapping } from "./VariantSkuMapping"
 
 interface VariantData {
   id?: string;
@@ -162,7 +161,9 @@ export function VariantMatrix({
       <CardHeader className="py-2 px-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CardTitle className="text-sm">Tan narx va zaxira</CardTitle>
+            <CardTitle className="text-sm">
+              {mode === 'order' ? "Tan narx" : "Tan narx va zaxira"}
+            </CardTitle>
             <Badge variant="outline" className="text-xs">{variants.length}</Badge>
           </div>
           <div className="flex items-center gap-3">
@@ -358,24 +359,19 @@ export function VariantMatrix({
         <div className="p-2 border-t bg-muted/30">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4 text-xs">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1">
-                  <span className="text-muted-foreground">Jami Tan narx:</span>
-                  <span className="font-semibold">{formatUZS(totalBaseCostInUZS)}</span>
-                </div>
-              </div>
-
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1">
                   <span className="text-muted-foreground">Jami Tan narx:</span>
                   <span className="font-semibold">{formatUZS(totalBaseCostInUZS)}</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-muted-foreground">Zaxira:</span>
-                  <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                    {totalActiveQuantity}
-                  </Badge>
-                </div>
+                {mode !== 'order' && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-muted-foreground">Zaxira:</span>
+                    <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                      {totalActiveQuantity}
+                    </Badge>
+                  </div>
+                )}
               </div>
             </div>
 

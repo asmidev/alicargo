@@ -50,6 +50,7 @@ const menuSections: MenuSection[] = [
     items: [
       { title: 'orders', url: '/crm/products', icon: Package },
       { title: 'boxes', url: '/crm/boxes', icon: Box },
+      { title: 'archive_boxes', url: '/crm/archive-boxes', icon: Layers },
       { title: 'logistics', url: '/crm/shipments', icon: Truck },
       { title: 'movements', url: '/crm/movements', icon: ArrowRightLeft },
     ],
@@ -192,22 +193,22 @@ export function CRMSidebar() {
 
     // Xitoy Manager: Dashboard, China Dashboard, Boxes, Shipments, Tasks, Verification Reports, Ali AI
     if (isChinaManager) {
-      return ['/crm/china-dashboard', '/crm/boxes', '/crm/shipments', '/crm/tasks', '/crm/verification-reports', '/crm/ali-ai'].includes(url);
+      return ['/crm/china-dashboard', '/crm/boxes', '/crm/archive-boxes', '/crm/shipments', '/crm/tasks', '/crm/verification-reports', '/crm/ali-ai'].includes(url);
     }
 
     // Xitoy Packer: Dashboard, China Dashboard, Boxes, Shipments, Tasks, Verification Reports
     if (isChinaStaff) {
-      return ['/crm/china-dashboard', '/crm/boxes', '/crm/shipments', '/crm/tasks', '/crm/verification-reports'].includes(url);
+      return ['/crm/china-dashboard', '/crm/boxes', '/crm/archive-boxes', '/crm/shipments', '/crm/tasks', '/crm/verification-reports'].includes(url);
     }
 
     // Uz Manager: Dashboard, Tashkent Dashboard, Boxes, Shipments, Tasks, Ali AI
     if (isUzManager) {
-      return ['/crm/tashkent-dashboard', '/crm/boxes', '/crm/shipments', '/crm/tasks', '/crm/ali-ai'].includes(url);
+      return ['/crm/tashkent-dashboard', '/crm/boxes', '/crm/archive-boxes', '/crm/shipments', '/crm/tasks', '/crm/ali-ai'].includes(url);
     }
 
     // Uz Receiver: Dashboard, Tashkent Dashboard, Boxes, Shipments, Tasks
     if (isUzStaff) {
-      return ['/crm/tashkent-dashboard', '/crm/boxes', '/crm/shipments', '/crm/tasks'].includes(url);
+      return ['/crm/tashkent-dashboard', '/crm/boxes', '/crm/archive-boxes', '/crm/shipments', '/crm/tasks'].includes(url);
     }
 
     // Manager (Marketplace): Dashboard, Products, Marketplace (all), Shipments, Tasks, Store Orders, Ali AI

@@ -78,12 +78,13 @@ interface TashkentProduct {
   tashkent_manual_stock: number;
   warehouse_price: number | null;
   source: string | null;
-  product_variants: {
-    id: string;
-    sku: string;
-    variant_attributes: Record<string, string>;
-    stock_quantity: number;
-  }[];
+    product_variants: {
+      id: string;
+      sku: string;
+      variant_attributes: Record<string, string>;
+      stock_quantity: number;
+      weight: number | null;
+    }[];
 }
 
 const FALLBACK_RATES: Record<string, number> = {
@@ -217,7 +218,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
         .select(`
           id, uuid, name, main_image_url, source,
           tashkent_manual_stock, warehouse_price,
-          product_variants(id, sku, variant_attributes, stock_quantity)
+          product_variants(id, sku, variant_attributes, stock_quantity, weight)
         `)
         .eq('status', 'active')
         .neq('source', 'marketplace_auto')
@@ -235,6 +236,8 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
   useEffect(() => {
     // Skip regeneration when loading existing variants
     if (isLoadingExistingVariants) return;
+    // EDIT: Also skip when in existing product link mode to prevent clearing the existing variants state
+    if (linkMode === 'existing') return;
     // Edit rejimda variantlar bazadan yuklanadi, qayta generatsiya qilmaslik
     if (editingProduct) return;
 
@@ -730,12 +733,13 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
             } else {
               variantId = order.variantId;
               // MUHIM: Mavjud variantning tannarxini va og'irligini ham yangilab qo'yamiz (Arslonbek so'ragan avtomatlashtirish)
+              const weightVal = (order.weight !== undefined && order.weight !== '') ? parseFloat(order.weight) : null;
               await supabase
                 .from('product_variants')
                 .update({ 
                   cost_price: order.price ? parseFloat(order.price) : priceValue,
                   cost_price_currency: formData.purchase_currency,
-                  weight: order.weight ? parseFloat(order.weight) : null
+                  weight: weightVal
                 })
                 .eq('id', variantId);
             }
@@ -773,7 +777,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
                 exchange_rate_at_purchase: currentRate,
                 domestic_shipping_cost: domesticShippingPerItem,
                 final_cost_usd: finalCostUSD > 0 ? finalCostUSD : null,
-                weight_grams: order.weight ? parseFloat(order.weight) : null,  // Og'irlikni saqlash
+                weight_grams: (order.weight !== undefined && order.weight !== '') ? parseFloat(order.weight) : null,  // Og'irlikni saqlash
                 cost_breakdown: {
                   purchase_price: unitCost,
                   purchase_currency: formData.purchase_currency,
@@ -1164,8 +1168,10 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
       // MUHIM: Avval pending-items-china ni yangilash va KUTISH
       await queryClient.invalidateQueries({ queryKey: ["pending-items-china"] });
       // Keyin products ni yangilash - pending-items allaqachon yangilangan
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["finance-transactions"] });
+      await queryClient.invalidateQueries({ queryKey: ["products"] });
+      await queryClient.invalidateQueries({ queryKey: ["finance-transactions"] });
+      await queryClient.invalidateQueries({ queryKey: ["tashkent-linkable-products"] });
+      await queryClient.invalidateQueries({ queryKey: ["product-inventory-overview"] });
       toast.success(editingProduct ? "Mahsulot yangilandi" : linkMode === 'existing' ? "Buyurtma muvaffaqiyatli qo'shildi" : "Mahsulot yaratildi");
       onOpenChange(false);
     },
@@ -1191,21 +1197,20 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
     setCustomAttributes(customAttributes.filter((_, i) => i !== index));
   };
 
-  // Handler for VariantMatrix field changes
   const handleVariantChange = (index: number, field: keyof VariantData, value: string | boolean) => {
     if (linkMode === 'existing' && selectedExistingProduct) {
       const variant = variants[index];
-      if (!variant?.id) return;
-
-      // Redirect quantity and price changes to selectedVariantOrders
-      if (field === 'stock_quantity') {
-        updateVariantOrderQuantity(variant.id, value as string);
-      } else if (field === 'cost_price') {
-        updateVariantOrderPrice(variant.id, value as string);
-      } else if (field === 'weight') {
-        updateVariantOrderWeight(variant.id, value as string);
+      if (variant?.id) {
+        // Redirect quantity and price changes to selectedVariantOrders
+        if (field === 'stock_quantity') {
+          updateVariantOrderQuantity(variant.id, value as string);
+        } else if (field === 'cost_price') {
+          updateVariantOrderPrice(variant.id, value as string);
+        } else if (field === 'weight') {
+          updateVariantOrderWeight(variant.id, value as string);
+        }
       }
-      return;
+      // Continue to update local variants state so it's persistent even if toggled
     }
 
     setVariants(prev => prev.map((v, i) =>
@@ -1241,15 +1246,17 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
       if (existing) {
         return prev.filter(o => o.variantId !== variantId);
       } else {
-        const variant = selectedExistingProduct?.product_variants?.find(v => v.id === variantId);
+        // Use the weight and price from our 'variants' state which might have been edited in the matrix
+        const variant = variants.find(v => v.id === variantId);
+        
         return [...prev, {
           variantId,
           quantity: 1,
           isNew: false,
           rang: variant?.variant_attributes?.rang,
           material: variant?.variant_attributes?.material,
-          price: formData.price || '',
-          weight: (variant as any)?.weight?.toString() || ''  // Variantdan og'irlik
+          price: variant?.cost_price || formData.price || '',
+          weight: variant?.weight || ''
         }];
       }
     });
@@ -1261,18 +1268,33 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
     setSelectedVariantOrders(prev =>
       prev.map(o => o.variantId === variantId ? { ...o, quantity } : o)
     );
+    
+    // Sync back to variants state for consistency
+    setVariants(prev => prev.map(v => 
+      v.id === variantId ? { ...v, stock_quantity: value } : v
+    ));
   };
 
   const updateVariantOrderPrice = (variantId: string, price: string) => {
     setSelectedVariantOrders(prev =>
       prev.map(o => o.variantId === variantId ? { ...o, price } : o)
     );
+    
+    // Sync back to variants state for consistency
+    setVariants(prev => prev.map(v => 
+      v.id === variantId ? { ...v, cost_price: price } : v
+    ));
   };
 
   const updateVariantOrderWeight = (variantId: string, weight: string) => {
     setSelectedVariantOrders(prev =>
       prev.map(o => o.variantId === variantId ? { ...o, weight } : o)
     );
+    
+    // Sync back to variants state for consistency
+    setVariants(prev => prev.map(v => 
+      v.id === variantId ? { ...v, weight } : v
+    ));
   };
 
   const addNewColorToOrder = () => {
@@ -1288,14 +1310,14 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
       rang: newColorName.trim(),
       material: newMaterial.trim() || undefined,
       price: newColorPrice || formData.price || '',
-      weight: newColorWeight || undefined  // Og'irlikni qo'shish
+      weight: newColorWeight || undefined
     }]);
     setShowNewColorDialog(false);
     setNewColorName('');
     setNewMaterial('');
     setNewColorQuantity('1');
     setNewColorPrice('');
-    setNewColorWeight('');  // Og'irlikni tozalash
+    setNewColorWeight('');
     toast.success(`${newColorName} rangi qo'shildi`);
   };
 
@@ -1336,7 +1358,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
           <div className="px-6">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="basic" className="gap-2">
                 <Package className="h-4 w-4" />
                 <span className="hidden sm:inline">Asosiy</span>
@@ -1344,10 +1366,6 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
               <TabsTrigger value="attributes" className="gap-2">
                 <Layers className="h-4 w-4" />
                 <span className="hidden sm:inline">Xususiyatlar</span>
-              </TabsTrigger>
-              <TabsTrigger value="variants" className="gap-2">
-                <Palette className="h-4 w-4" />
-                <span className="hidden sm:inline">Variantlar</span>
               </TabsTrigger>
             </TabsList>
           </div>
@@ -1445,6 +1463,23 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
                                     quantity: '',
                                     shippingCostToChina: '',
                                   }));
+
+                                  // Sync variants state with selected existing product variants
+                                  if (firstProduct.product_variants) {
+                                    setVariants(firstProduct.product_variants.map(v => ({
+                                      id: v.id,
+                                      sku: v.sku,
+                                      barcode: '',
+                                      price: '',
+                                      stock_quantity: '1',
+                                      weight: v.weight?.toString() || '',
+                                      variant_attributes: v.variant_attributes,
+                                      is_active: false,
+                                      cost_price: '',
+                                      cost_price_currency: 'CNY',
+                                    })));
+                                  }
+
                                   setTimeout(() => {
                                     orderDetailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                   }, 150);
@@ -2116,6 +2151,70 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
 
                 </div>
               )}
+
+              {(linkMode === 'new' || editingProduct) && (
+                <>
+                  <Separator className="my-6" />
+
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                      <Palette className="h-5 w-5" />
+                      Mahsulot variantlari
+                    </h3>
+
+                    {/* Nested Variant Builder */}
+                    <NestedVariantBuilder
+                      nestedVariants={nestedVariants}
+                      onNestedVariantsChange={setNestedVariants}
+                    />
+
+                    {/* Rang rasmlari - ranglar kiritilganda ko'rinadi */}
+                    {nestedVariants.length > 0 && (
+                      <VariantImageUpload
+                        nestedVariants={nestedVariants}
+                        variantImages={variantImages}
+                        onVariantImagesChange={setVariantImages}
+                      />
+                    )}
+
+                    {/* Variant Matrix - shows when variants exist */}
+                    {variants.length > 0 && (() => {
+                      // When in link mode, we proxy the variants data to show order quantities instead of warehouse stock
+                      const matrixVariants = linkMode === 'existing'
+                        ? variants.map(v => {
+                          const order = selectedVariantOrders.find(o => o.variantId === v.id);
+                          return {
+                            ...v,
+                            stock_quantity: order ? (order.quantity?.toString() || "1") : "0",
+                            cost_price: order ? (order.price || v.cost_price) : v.cost_price,
+                            weight: order ? (order.weight || v.weight) : v.weight,
+                            is_active: !!order
+                          };
+                        })
+                        : variants;
+
+                      return (
+                        <VariantMatrix
+                          mode="order"
+                          attributes={variantAttributesForMatrix}
+                          variants={matrixVariants}
+                          selectedAttributes={["rang", "material"]}
+                          onVariantChange={handleVariantChange}
+                          onVariantToggle={handleVariantToggle}
+                          currency="CNY"
+                          onCurrencyChange={(value) => setFormData({ ...formData, purchase_currency: value })}
+                          shippingCost={formData.shippingCostToChina}
+                          onShippingCostChange={(value) => setFormData({ ...formData, shippingCostToChina: value })}
+                          skuMappings={skuMappings}
+                          onSkuMappingsChange={(index, mappings) => {
+                            setSkuMappings(prev => ({ ...prev, [index]: mappings }));
+                          }}
+                        />
+                      );
+                    })()}
+                  </div>
+                </>
+              )}
             </TabsContent>
 
             <TabsContent value="attributes" className="mt-0 space-y-4">
@@ -2164,60 +2263,6 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
                 </CardContent>
               </Card>
             </TabsContent>
-
-            <TabsContent value="variants" className="mt-0 space-y-4">
-              {/* Nested Variant Builder */}
-              <NestedVariantBuilder
-                nestedVariants={nestedVariants}
-                onNestedVariantsChange={setNestedVariants}
-              />
-
-              {/* Rang rasmlari - ranglar kiritilganda ko'rinadi */}
-              {nestedVariants.length > 0 && (
-                <VariantImageUpload
-                  nestedVariants={nestedVariants}
-                  variantImages={variantImages}
-                  onVariantImagesChange={setVariantImages}
-                />
-              )}
-
-              {/* Variant Matrix - shows when variants exist */}
-              {variants.length > 0 && (() => {
-                // When in link mode, we proxy the variants data to show order quantities instead of warehouse stock
-                const matrixVariants = linkMode === 'existing' 
-                  ? variants.map(v => {
-                      const order = selectedVariantOrders.find(o => o.variantId === v.id);
-                      return {
-                        ...v,
-                        stock_quantity: order ? (order.quantity?.toString() || "1") : "0",
-                        cost_price: order ? (order.price || v.cost_price) : v.cost_price,
-                        weight: order ? (order.weight || v.weight) : v.weight,
-                        is_active: !!order
-                      };
-                    })
-                  : variants;
-
-                return (
-                  <VariantMatrix
-                    mode="order"
-                    attributes={variantAttributesForMatrix}
-                    variants={matrixVariants}
-                    selectedAttributes={["rang", "material"]}
-                    onVariantChange={handleVariantChange}
-                    onVariantToggle={handleVariantToggle}
-                    currency="CNY"
-                    onCurrencyChange={(value) => setFormData({ ...formData, purchase_currency: value })}
-                    shippingCost={formData.shippingCostToChina}
-                    onShippingCostChange={(value) => setFormData({ ...formData, shippingCostToChina: value })}
-                    skuMappings={skuMappings}
-                    onSkuMappingsChange={(index, mappings) => {
-                      setSkuMappings(prev => ({ ...prev, [index]: mappings }));
-                    }}
-                  />
-                );
-              })()}
-            </TabsContent>
-
           </ScrollArea>
         </Tabs>
 

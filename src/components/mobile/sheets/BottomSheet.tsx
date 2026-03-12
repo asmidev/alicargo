@@ -130,6 +130,7 @@ export function BottomSheet({
   };
 
   const currentHeight = getSnapPointHeight(snapPoints[currentSnapIndex]);
+  const modalOpacity = useTransform(y, [0, currentHeight], [1, 0]);
 
   return (
     <AnimatePresence>
@@ -143,7 +144,7 @@ export function BottomSheet({
               exit={{ opacity: 0 }}
               onClick={dismissible ? handleClose : undefined}
               className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-              style={{ opacity: useTransform(y, [0, currentHeight], [1, 0]) }}
+              style={{ opacity: modalOpacity }}
             />
           )}
 

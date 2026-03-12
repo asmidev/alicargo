@@ -41,7 +41,7 @@ export default function Verification() {
       
       const { data, error } = await supabase
         .from('boxes')
-        .select('*, product_items(id, item_uuid, status, notes, products(name, uuid, category))')
+        .select('*, product_items(id, product_id, item_uuid, status, notes, products(name, uuid, category))')
         .eq('id', boxId)
         .maybeSingle();
       
@@ -201,6 +201,60 @@ export default function Verification() {
         .eq('id', box.id);
         
       if (boxError) throw boxError;
+
+      // Create claims for damaged/missing items
+      const defectiveStatuses = Object.values(itemStatuses).filter(s => s.status === 'damaged' || s.status === 'missing');
+      
+      if (defectiveStatuses.length > 0) {
+        // Fetch defect categories to map correctly
+        const { data: categories } = await supabase.from('defect_categories').select('id, name');
+        
+        const brokenCategoryId = categories?.find(c => c.name === 'broken')?.id;
+        const incompleteCategoryId = categories?.find(c => c.name === 'incomplete')?.id;
+        const otherCategoryId = categories?.find(c => c.name === 'other')?.id;
+
+        // Generate claim_number ourselves to bypass broken DB trigger
+        const yearPrefix = new Date().getFullYear().toString();
+        const { data: existingClaims } = await supabase
+          .from('defect_claims')
+          .select('claim_number')
+          .like('claim_number', `CLM-${yearPrefix}-%`)
+          .order('claim_number', { ascending: false })
+          .limit(1);
+          
+        let nextSeqNum = 1;
+        if (existingClaims && existingClaims.length > 0) {
+          const lastNum = existingClaims[0].claim_number?.split('-').pop();
+          nextSeqNum = (parseInt(lastNum || '0', 10) || 0) + 1;
+        }
+
+        const claimsToInsert = defectiveStatuses.map((statusObj, idx) => {
+          const productItem = box.product_items.find((p: any) => p.id === statusObj.id);
+          
+          let categoryId = otherCategoryId;
+          if (statusObj.status === 'damaged') categoryId = brokenCategoryId || otherCategoryId;
+          if (statusObj.status === 'missing') categoryId = incompleteCategoryId || otherCategoryId;
+
+          const seqNum = String(nextSeqNum + idx).padStart(4, '0');
+          const claimNumber = `CLM-${yearPrefix}-${seqNum}`;
+
+          return {
+            claim_number: claimNumber,
+            box_id: box.id,
+            product_id: productItem?.product_id,
+            product_item_id: statusObj.id,
+            defect_category_id: categoryId,
+            defect_description: statusObj.notes || (statusObj.status === 'damaged' ? "Keng qamrovli tekshiruvda brak chiqdi." : "Keng qamrovli tekshiruvda yetishmayapti."),
+            status: 'pending',
+            created_by: user.id
+          };
+        });
+
+        if (claimsToInsert.length > 0) {
+          const { error: claimsError } = await supabase.from('defect_claims').insert(claimsToInsert as any[]);
+          if (claimsError) console.error('Error creating automated claims:', claimsError);
+        }
+      }
 
       // Create tracking event
       const okCount = Object.values(itemStatuses).filter(s => s.status === 'ok').length;

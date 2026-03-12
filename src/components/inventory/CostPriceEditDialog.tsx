@@ -160,11 +160,11 @@ export function CostPriceEditDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-1">
-          {/* Tan narx (Jami) - TEPADA KO'RSATILADI */}
+          {/* 1 dona narxi - TEPADA KO'RSATILADI */}
           <div className="rounded-lg border bg-primary/5 border-primary/20 px-4 py-3 flex items-center justify-between mb-2">
             <div className="flex flex-col">
-              <span className="text-sm font-semibold">Tannarx (Jami):</span>
-              <span className="text-xs text-muted-foreground">Barcha xarajatlar yig'indisi</span>
+              <span className="text-sm font-semibold">1 dona mahsulot tannarxi:</span>
+              <span className="text-xs text-muted-foreground">1 ta tovar uchun jami xarajat</span>
             </div>
             <div className="flex flex-col items-end gap-1">
               <span className="text-xl font-bold text-primary">
@@ -184,7 +184,7 @@ export function CostPriceEditDialog({
                   setIntlShippingUsd("0");
                 }}
               >
-                Yig'indini narxga o'tkazish
+                Faqat shu narxni saqlab qolish
               </Button>
             </div>
           </div>
@@ -193,7 +193,7 @@ export function CostPriceEditDialog({
 
           {/* Xitoy narxi */}
           <div className="space-y-1.5 pt-2">
-            <Label className="text-sm font-medium">Xitoy narxi (Sotib olingan narxi)</Label>
+            <Label className="text-sm font-medium">1 dona mahsulot narxi (sotib olish)</Label>
             <div className="flex gap-2">
               <Input
                 type="number"
@@ -229,7 +229,7 @@ export function CostPriceEditDialog({
 
           {/* Umumiy yo'l haqqi */}
           <div className="space-y-3">
-            <Label className="text-sm font-medium">Umumiy yo'l haqqi</Label>
+            <Label className="text-sm font-medium">Ichki yo'l haqqi (Xitoy bo'ylab)</Label>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Jami (CNY)</Label>
@@ -269,7 +269,7 @@ export function CostPriceEditDialog({
 
           {/* Logistika yo'l haqqi */}
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium">Logistika yo'l haqqi</Label>
+            <Label className="text-sm font-medium">Xalqaro logistika (Xitoy-Toshkent)</Label>
             <Label className="text-xs text-muted-foreground block">Dona uchun (USD)</Label>
             <Input
               type="number"

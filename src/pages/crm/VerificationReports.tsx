@@ -49,16 +49,7 @@ export default function VerificationReports() {
   const [endDate, setEndDate] = useState<Date>(new Date());
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
 
-  // Access denied check
-  if (!roleLoading && !canAccess) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-        <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
-        <h2 className="text-xl font-semibold text-foreground mb-2">{t('vrpt_no_access')}</h2>
-        <p className="text-muted-foreground">{t('vrpt_no_access_msg')}</p>
-      </div>
-    );
-  }
+  // Access denied check will be handled below hooks
 
   // Fetch verification sessions with details
   const { data: sessions, isLoading } = useQuery({
@@ -111,6 +102,7 @@ export default function VerificationReports() {
     retry: 1,
     staleTime: 60000, // 1 minute cache
     gcTime: 300000, // 5 minute garbage collection
+    enabled: canAccess,
   });
 
   // Fetch defect categories breakdown
@@ -140,7 +132,19 @@ export default function VerificationReports() {
     },
     staleTime: 60000, // 1 minute cache
     gcTime: 300000, // 5 minute garbage collection
+    enabled: canAccess,
   });
+
+  // Access denied check
+  if (!roleLoading && !canAccess) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
+        <h2 className="text-xl font-semibold text-foreground mb-2">{t('vrpt_no_access')}</h2>
+        <p className="text-muted-foreground">{t('vrpt_no_access_msg')}</p>
+      </div>
+    );
+  }
 
   // Calculate daily summaries
   const dailySummaries: DailySummary[] = sessions ? 

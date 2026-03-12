@@ -1,11 +1,12 @@
-import { useState } from "react";
-import { Input } from "@/components/ui/input";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ImageIcon, X, Camera } from "lucide-react";
+import { ImageIcon, X, Camera, Upload, Loader2 } from "lucide-react";
 import { NestedVariantItem } from "./NestedVariantBuilder";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface VariantImageUploadProps {
   nestedVariants: NestedVariantItem[];
@@ -36,16 +37,47 @@ function getColorDot(colorName: string): string {
 }
 
 export function VariantImageUpload({ nestedVariants, variantImages, onVariantImagesChange }: VariantImageUploadProps) {
-  const [editingRang, setEditingRang] = useState<string | null>(null);
-  const [urlInput, setUrlInput] = useState("");
+  const [uploadingColor, setUploadingColor] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const selectedColorRef = useRef<string | null>(null);
 
-  const allColors = nestedVariants.map(v => v.rang).filter(Boolean);
+  const allColors = Array.from(new Set(nestedVariants.map(v => v.rang).filter(Boolean)));
 
-  const handleSetUrl = (rang: string) => {
-    if (!urlInput.trim()) return;
-    onVariantImagesChange({ ...variantImages, [rang]: urlInput.trim() });
-    setEditingRang(null);
-    setUrlInput("");
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const color = selectedColorRef.current;
+    if (!file || !color) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error("Faqat rasm fayllari qabul qilinadi");
+      return;
+    }
+
+    setUploadingColor(color);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${color}-${Math.random()}.${fileExt}`;
+      const filePath = `variants/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(filePath);
+
+      onVariantImagesChange({ ...variantImages, [color]: publicUrl });
+      toast.success(`${color} uchun rasm yuklandi`);
+    } catch (error: any) {
+      console.error('Error uploading image:', error);
+      toast.error(`Rasm yuklashda xatolik: ${error.message}`);
+    } finally {
+      setUploadingColor(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   const handleRemove = (rang: string) => {
@@ -54,9 +86,9 @@ export function VariantImageUpload({ nestedVariants, variantImages, onVariantIma
     onVariantImagesChange(next);
   };
 
-  const startEdit = (rang: string) => {
-    setEditingRang(rang);
-    setUrlInput(variantImages[rang] || "");
+  const triggerUpload = (rang: string) => {
+    selectedColorRef.current = rang;
+    fileInputRef.current?.click();
   };
 
   if (allColors.length === 0) return null;
@@ -69,20 +101,28 @@ export function VariantImageUpload({ nestedVariants, variantImages, onVariantIma
           Rang rasmlari
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Har bir rang uchun alohida rasm URL kiriting
+          Har bir rang uchun alohida rasm yuklang
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
+        <input
+          type="file"
+          ref={fileInputRef}
+          className="hidden"
+          accept="image/*"
+          onChange={handleUpload}
+        />
+
         {allColors.map((rang) => {
           const imageUrl = variantImages[rang];
           const dotColor = getColorDot(rang);
-          const isEditing = editingRang === rang;
+          const isUploading = uploadingColor === rang;
 
           return (
-            <div key={rang} className="flex items-start gap-3 p-3 rounded-lg border bg-muted/30">
+            <div key={rang} className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
               {/* Color dot */}
               <div
-                className="w-5 h-5 rounded-full border border-border shrink-0 mt-0.5"
+                className="w-5 h-5 rounded-full border border-border shrink-0"
                 style={{ backgroundColor: dotColor }}
                 title={rang}
               />
@@ -107,57 +147,46 @@ export function VariantImageUpload({ nestedVariants, variantImages, onVariantIma
                 )}
               </div>
 
-              {/* Color name + URL editing */}
+              {/* Color name + Upload controls */}
               <div className="flex-1 min-w-0">
                 <Label className="text-sm font-medium capitalize">{rang}</Label>
-
-                {isEditing ? (
-                  <div className="flex gap-2 mt-1">
-                    <Input
-                      value={urlInput}
-                      onChange={(e) => setUrlInput(e.target.value)}
-                      placeholder="https://example.com/image.jpg"
-                      className="h-8 text-xs"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleSetUrl(rang);
-                        if (e.key === "Escape") { setEditingRang(null); setUrlInput(""); }
-                      }}
-                    />
-                    <Button size="sm" className="h-8 shrink-0" onClick={() => handleSetUrl(rang)}>
-                      Saqlash
-                    </Button>
-                    <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={() => { setEditingRang(null); setUrlInput(""); }}>
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 mt-1">
-                    {imageUrl ? (
-                      <span className="text-xs text-muted-foreground truncate max-w-[180px]">{imageUrl}</span>
+                
+                <div className="flex items-center gap-2 mt-1">
+                  {imageUrl ? (
+                    <span className="text-xs text-muted-foreground truncate max-w-[150px]">
+                      Rasm yuklangan
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground/60 italic">Rasm yo'q</span>
+                  )}
+                  
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs px-2 shrink-0 gap-1.5"
+                    disabled={isUploading}
+                    onClick={() => triggerUpload(rang)}
+                  >
+                    {isUploading ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
                     ) : (
-                      <span className="text-xs text-muted-foreground/60 italic">Rasm qo'shilmagan</span>
+                      <Upload className="h-3 w-3" />
                     )}
+                    {imageUrl ? "O'zgartirish" : "Rasm yuklash"}
+                  </Button>
+
+                  {imageUrl && (
                     <Button
                       size="sm"
-                      variant="outline"
-                      className="h-7 text-xs px-2 shrink-0"
-                      onClick={() => startEdit(rang)}
+                      variant="ghost"
+                      className={cn("h-7 w-7 p-0 shrink-0 text-destructive hover:text-destructive")}
+                      onClick={() => handleRemove(rang)}
+                      disabled={isUploading}
                     >
-                      {imageUrl ? "O'zgartirish" : "URL qo'shish"}
+                      <X className="h-3.5 w-3.5" />
                     </Button>
-                    {imageUrl && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className={cn("h-7 w-7 p-0 shrink-0 text-destructive hover:text-destructive")}
-                        onClick={() => handleRemove(rang)}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           );

@@ -14,6 +14,8 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import { ManualReturnScanner } from '@/components/marketplace/ManualReturnScanner';
+
 
 interface MarketplaceReturn {
   id: string;
@@ -37,6 +39,7 @@ interface MarketplaceReturn {
   resolved_by: string | null;
   resolved_at: string | null;
   created_at: string;
+  is_fbo_defect?: boolean | null;
 }
 
 interface NakladnoyGroup {
@@ -67,6 +70,7 @@ export function ReturnsTab() {
   const queryClient = useQueryClient();
   const [confirmAction, setConfirmAction] = useState<{ id: string; resolution: Resolution; quantity: number; product_title: string } | null>(null);
   const [confirmBulkAction, setConfirmBulkAction] = useState<{ nakladnoy_id: string; resolution: Resolution; items: MarketplaceReturn[] } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; title: string } | null>(null);
   const [showResolved, setShowResolved] = useState(false);
   const [removalNote, setRemovalNote] = useState('');
   const [bulkRemovalNote, setBulkRemovalNote] = useState('');
@@ -75,6 +79,7 @@ export function ReturnsTab() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [monthFilter, setMonthFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   // Generate month options: 3 months ahead + 12 months back (to cover future dates like 2026-02)
   const monthOptions = useMemo(() => {
@@ -531,6 +536,28 @@ export function ReturnsTab() {
     onError: () => toast.error('Xatolik yuz berdi'),
   });
 
+  // Delete resolved or pending return completely
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error, count } = await supabase
+        .from('marketplace_returns')
+        .delete({ count: 'exact' })
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      if (count === 0) {
+        throw new Error("Supabase'da (Policy) o'chirishga ruxsat yo'q. Bazadan DELETE qoidasini yoqishingiz kerak.");
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['marketplace_returns'] });
+      toast.success("Vozvrat muvaffaqiyatli o'chirildi");
+      setConfirmDelete(null);
+    },
+    onError: (err: any) => toast.error("O'chirishda xatolik: " + err.message),
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -566,6 +593,16 @@ export function ReturnsTab() {
         >
           <RefreshCw className={cn('h-4 w-4', isSyncingYandex && 'animate-spin')} />
           {isSyncingYandex ? 'Yandex yuklanmoqda...' : 'Yandex vozvradlarini yuklash'}
+        </Button>
+
+        <Button
+          size="sm"
+          variant="default"
+          onClick={() => setScannerOpen(true)}
+          className="gap-2 ml-auto lg:ml-0 bg-primary/90 hover:bg-primary"
+        >
+          <Package className="h-4 w-4" />
+          Qo'lda (Skaner) qabul qilish
         </Button>
 
         {/* Month filter */}
@@ -664,6 +701,7 @@ export function ReturnsTab() {
                 key={item.id}
                 item={item}
                 onAction={(res) => setConfirmAction({ id: item.id, resolution: res, quantity: item.quantity, product_title: item.product_title })}
+                onDelete={() => setConfirmDelete({ id: item.id, title: item.product_title })}
                 resolved={showResolved}
               />
             ))}
@@ -713,6 +751,32 @@ export function ReturnsTab() {
         />
       )}
 
+      {/* Delete confirmation dialog */}
+      {confirmDelete && (
+        <ConfirmDialog
+          open={!!confirmDelete}
+          onOpenChange={(open) => !open && setConfirmDelete(null)}
+          title="Vozvratni butunlay o'chirish"
+          description={`"${confirmDelete.title}" ni ro'yxatdan o'chirmoqchimisiz? Bu amalni ortga qaytarib bo'lmaydi.`}
+          confirmText="O'chirish"
+          confirmButtonVariant="destructive"
+          onConfirm={() => deleteMutation.mutate(confirmDelete.id)}
+          isLoading={deleteMutation.isPending}
+        />
+      )}
+
+      {/* Manual Scanner Dialog */}
+      <Dialog open={scannerOpen} onOpenChange={setScannerOpen}>
+        <DialogContent className="max-w-4xl p-0 overflow-hidden sm:h-[85vh] flex flex-col">
+           <div className="flex-1 overflow-y-auto p-6">
+             <ManualReturnScanner onSaved={() => {
+                setScannerOpen(false);
+                // The invalidation inside the scanner will trigger a refetch naturally
+             }} />
+           </div>
+        </DialogContent>
+      </Dialog>
+
 
     </div>
   );
@@ -723,10 +787,12 @@ export function ReturnsTab() {
 function ReturnCard({
   item,
   onAction,
+  onDelete,
   resolved,
 }: {
   item: MarketplaceReturn;
   onAction?: (r: Resolution) => void;
+  onDelete?: () => void;
   resolved?: boolean;
 }) {
   const resolutionBadge = resolved && item.resolution !== 'pending'
@@ -820,17 +886,27 @@ function ReturnCard({
         </div>
       )}
 
-      {/* Action buttons (pending) */}
-      {!resolved && onAction && (
-        <div className="flex gap-2 mt-auto p-4 pt-0">
-          <Button size="sm" variant="outline" className="flex-1 text-blue-500 border-blue-500/30 hover:bg-blue-500/10 text-xs" onClick={() => onAction('return_to_stock')}>
-            <RotateCcw className="h-3.5 w-3.5 mr-1" /> Zaxiraga
-          </Button>
-          <Button size="sm" variant="outline" className="flex-1 text-destructive border-destructive/30 hover:bg-destructive/10 text-xs" onClick={() => onAction('remove_from_stock')}>
-            <Trash2 className="h-3.5 w-3.5 mr-1" /> Chiqarish
-          </Button>
-        </div>
-      )}
+      <div className="flex items-center justify-between gap-2 mt-auto p-4 pt-0">
+        {/* Action buttons (pending) */}
+        {!resolved ? (
+          onAction ? (
+            <div className="flex gap-2 w-full">
+              <Button size="sm" variant="outline" className="flex-1 text-blue-500 border-blue-500/30 hover:bg-blue-500/10 text-xs" onClick={() => onAction('return_to_stock')}>
+                <RotateCcw className="h-3.5 w-3.5 mr-1" /> Zaxiraga
+              </Button>
+              <Button size="sm" variant="outline" className="flex-1 text-destructive border-destructive/30 hover:bg-destructive/10 text-xs" onClick={() => onAction('remove_from_stock')}>
+                <Trash2 className="h-3.5 w-3.5 mr-1" /> Chiqarish
+              </Button>
+            </div>
+          ) : <div className="flex-1" />
+        ) : <div className="flex-1" />}
+
+        {onDelete && (
+           <Button variant="ghost" size="icon" className="h-8 w-8 ml-auto text-muted-foreground hover:text-destructive shrink-0" onClick={onDelete}>
+             <Trash2 className="h-4 w-4" />
+           </Button>
+        )}
+      </div>
     </Card>
   );
 }

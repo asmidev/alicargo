@@ -40,7 +40,7 @@ export function BoxVerificationDialog({ box, open, onOpenChange }: BoxVerificati
         .select(`
           *, 
           product_items(
-            id, item_uuid, status, notes, variant_id,
+            id, product_id, item_uuid, status, notes, variant_id,
             products(name, uuid, category),
             product_variants(variant_attributes, sku),
             verification_items(status, defect_type, notes)
@@ -158,12 +158,82 @@ export function BoxVerificationDialog({ box, open, onOpenChange }: BoxVerificati
           metadata: { okCount, damagedCount, missingCount },
         });
 
+      // Automatically create claims for defective/missing items
+      const defectiveStatuses = Object.entries(itemStatuses).filter(
+        ([, s]) => s.status === 'defective' || s.status === 'missing'
+      );
+
+      if (defectiveStatuses.length > 0) {
+        // Fetch defect categories
+        const { data: categories } = await supabase.from('defect_categories').select('id, name');
+        const brokenCategoryId = categories?.find(c => c.name === 'broken')?.id;
+        const incompleteCategoryId = categories?.find(c => c.name === 'incomplete')?.id;
+        const otherCategoryId = categories?.find(c => c.name === 'other')?.id;
+
+        // Fetch product_ids directly for the defective item IDs (reliable source)
+        const defectiveItemIds = defectiveStatuses.map(([id]) => id);
+        const { data: itemsWithProducts } = await supabase
+          .from('product_items')
+          .select('id, product_id')
+          .in('id', defectiveItemIds);
+
+        // Generate claim_number ourselves to bypass broken DB trigger
+        // DB trigger has bug: SUBSTRING FROM 6 returns '026-0001' not '0001'
+        const yearPrefix = new Date().getFullYear().toString();
+        const { data: existingClaims } = await supabase
+          .from('defect_claims')
+          .select('claim_number')
+          .like('claim_number', `CLM-${yearPrefix}-%`)
+          .order('claim_number', { ascending: false })
+          .limit(1);
+          
+        let nextSeqNum = 1;
+        if (existingClaims && existingClaims.length > 0) {
+          const lastNum = existingClaims[0].claim_number?.split('-').pop();
+          nextSeqNum = (parseInt(lastNum || '0', 10) || 0) + 1;
+        }
+
+        const claimsToInsert = defectiveStatuses.map(([itemId, statusObj], idx) => {
+          const productItem = itemsWithProducts?.find((p: any) => p.id === itemId);
+          let categoryId = otherCategoryId;
+          if (statusObj.status === 'defective') categoryId = brokenCategoryId || otherCategoryId;
+          if (statusObj.status === 'missing') categoryId = incompleteCategoryId || otherCategoryId;
+          
+          const seqNum = String(nextSeqNum + idx).padStart(4, '0');
+          const claimNumber = `CLM-${yearPrefix}-${seqNum}`;
+
+          return {
+            claim_number: claimNumber,
+            box_id: boxData.id,
+            product_id: productItem?.product_id || null,
+            product_item_id: itemId,
+            defect_category_id: categoryId || null,
+            defect_description: statusObj.notes || 
+              (statusObj.status === 'defective' 
+                ? "UZ tasdiqlashda brak aniqlandi." 
+                : "UZ tasdiqlashda mahsulot yetishmaydi."),
+            status: 'pending',
+            created_by: user.id,
+          };
+        });
+
+        if (claimsToInsert.length > 0) {
+          const { error: claimsError } = await supabase
+            .from('defect_claims')
+            .insert(claimsToInsert as any[]);
+          if (claimsError) {
+            throw new Error(`Da'vo yaratishda xatolik: ${claimsError.message}`);
+          }
+        }
+      }
+
       return { okCount, damagedCount, missingCount };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['boxes'] });
       queryClient.invalidateQueries({ queryKey: ['tracking'] });
       queryClient.invalidateQueries({ queryKey: ['box-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['defect-claims'] });
       
       toast({
         title: 'Tasdiqlash yakunlandi!',

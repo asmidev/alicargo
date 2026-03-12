@@ -119,7 +119,7 @@ export default function Boxes() {
   }), [usdToUzs, cnyToUzs]);
 
   const { data: boxes, isLoading } = useQuery({
-    queryKey: ['boxes'],
+    queryKey: ['boxes', { archived: false }],
     queryFn: async () => {
       return await fetchAllRows(
         supabase
@@ -144,6 +144,7 @@ export default function Boxes() {
             ),
             shipment_boxes(shipment:shipments(id, shipment_number, status))
           `)
+          .neq('status', 'arrived')
           .order('created_at', { ascending: false })
       );
     },
@@ -769,17 +770,6 @@ export default function Boxes() {
             >
                {t('box_status_in_transit')}
             </button>
-            <button
-              onClick={() => setStatusFilter('arrived')}
-              className={cn(
-                "shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all",
-                statusFilter === 'arrived'
-                  ? "bg-green-500 text-white"
-                  : "bg-muted text-muted-foreground"
-              )}
-            >
-               {t('box_status_arrived')}
-            </button>
             {activeFiltersCount > 0 && (
               <button
                 onClick={resetFilters}
@@ -814,7 +804,6 @@ export default function Boxes() {
                    <SelectItem value="packing">{t('box_status_packing')}</SelectItem>
                    <SelectItem value="sealed">{t('box_status_sealed')}</SelectItem>
                    <SelectItem value="in_transit">{t('box_status_in_transit')}</SelectItem>
-                   <SelectItem value="arrived">{t('box_status_arrived')}</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={locationFilter} onValueChange={setLocationFilter}>

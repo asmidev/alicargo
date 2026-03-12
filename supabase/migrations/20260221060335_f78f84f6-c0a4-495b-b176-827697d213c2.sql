@@ -1,1 +1,0 @@
-ALTER TABLE public.store_orders ADD COLUMN IF NOT EXISTS customer_card_number text;

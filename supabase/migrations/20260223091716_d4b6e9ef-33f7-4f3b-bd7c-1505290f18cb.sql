@@ -1,1 +1,0 @@
-DROP FUNCTION IF EXISTS public.auto_distribute_box_shipping_cost(uuid, numeric, numeric);

@@ -51,16 +51,6 @@ export default function TashkentDashboard() {
   // Role-based access control - only UZ staff and Chief Manager
   const canAccess = isChiefManager || isUzManager || isUzStaff;
   
-  if (!roleLoading && !canAccess) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-        <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
-        <h2 className="text-xl font-semibold text-foreground mb-2">{t('tash_access_denied')}</h2>
-        <p className="text-muted-foreground">{t('tash_access_denied_msg')}</p>
-      </div>
-    );
-  }
-
   // Permission to manage warehouse sections (only managers, not staff)
   const canManageWarehouse = isChiefManager || isUzManager;
 
@@ -115,6 +105,7 @@ export default function TashkentDashboard() {
       
       return warehouse;
     },
+    enabled: canAccess,
   });
 
   // Fetch categories as sections (from categories_hierarchy)
@@ -130,6 +121,7 @@ export default function TashkentDashboard() {
       if (error) throw error;
       return data;
     },
+    enabled: canAccess,
   });
 
   // Fetch TOTAL quantity per category (manual stock + product_items in Tashkent)
@@ -174,6 +166,7 @@ export default function TashkentDashboard() {
       
       return counts;
     },
+    enabled: canAccess,
   });
 
   // Map categories to sections format for UI compatibility
@@ -210,6 +203,7 @@ export default function TashkentDashboard() {
       if (error) throw error;
       return data;
     },
+    enabled: canAccess,
   });
 
   // Fetch stats - CORRECTED to use proper data sources
@@ -365,7 +359,7 @@ export default function TashkentDashboard() {
         inTransitBoxes: inTransitBoxes.slice(0, 5),
       };
     },
-    enabled: !!tashkentWarehouse?.id,
+    enabled: canAccess && !!tashkentWarehouse?.id,
   });
 
 
@@ -390,6 +384,16 @@ export default function TashkentDashboard() {
       channels.forEach(channel => supabase.removeChannel(channel));
     };
   }, [queryClient]);
+  
+  if (!roleLoading && !canAccess) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
+        <h2 className="text-xl font-semibold text-foreground mb-2">{t('tash_access_denied')}</h2>
+        <p className="text-muted-foreground">{t('tash_access_denied_msg')}</p>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return <DashboardLoadingSkeleton />;

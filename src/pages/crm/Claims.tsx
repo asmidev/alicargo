@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Plus, Search, FileText, AlertTriangle, CheckCircle, XCircle, Clock, Send, Eye, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, Search, FileText, AlertTriangle, CheckCircle, XCircle, Clock, Send, Eye, Calendar as CalendarIcon, DollarSign } from 'lucide-react';
 import { TableLoadingSkeleton } from '@/components/ui/loading-skeleton';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -103,6 +103,7 @@ export default function Claims() {
     submitted: claims.filter(c => c.status === 'submitted').length,
     approved: claims.filter(c => c.status === 'approved').length,
     rejected: claims.filter(c => c.status === 'rejected').length,
+    compensated: claims.filter(c => c.status === 'compensated').length,
   };
 
   // Filter claims
@@ -206,7 +207,7 @@ export default function Claims() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <Card 
           className="bg-gradient-to-br from-muted/50 to-muted/30 cursor-pointer hover:shadow-lg transition-all"
           onClick={() => setStatusFilter('all')}
@@ -274,6 +275,20 @@ export default function Claims() {
                 <p className="text-2xl font-bold text-red-600">{stats.rejected}</p>
               </div>
               <XCircle className="h-8 w-8 text-red-500/50" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card 
+          className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 cursor-pointer hover:shadow-lg transition-all"
+          onClick={() => setStatusFilter('compensated')}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">{t('compensated')}</p>
+                <p className="text-2xl font-bold text-purple-600">{stats.compensated}</p>
+              </div>
+              <DollarSign className="h-8 w-8 text-purple-500/50" />
             </div>
           </CardContent>
         </Card>
