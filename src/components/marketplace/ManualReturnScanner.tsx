@@ -212,6 +212,10 @@ export function ManualReturnScanner({ onSaved }: ManualReturnScannerProps) {
       const condition = 'healthy';
       const rType = currentOrderType === 'fbo' ? 'fbo_return' : 'fbs_seller';
 
+      // Vaqtincha saqlab turadigan ro'yxatlar (xato bo'lmasa keyin asosiyga qo'shiladi)
+      const tempFoundItems: ScannedReturnItem[] = [];
+      const tempUnfoundItems: {barcode: string, quantity: number}[] = [];
+
       // Har bir topilgan itemni bazadan izlash
       for (const item of parsedData.items) {
         // 1. Dastlab To'g'ridan to'g'ri Variantlardan Sku orqali qidiramiz
@@ -276,30 +280,43 @@ export function ManualReturnScanner({ onSaved }: ManualReturnScannerProps) {
             buy_price: isVariant ? (foundProduct.cost_price || foundProduct.products?.cost_price || 0) : (foundProduct.cost_price || 0)
           };
 
-          setItems((prev: ScannedReturnItem[]) => {
-             const existing = prev.find(p => p.variant_id === newItem.variant_id && p.product_id === newItem.product_id && p.condition === newItem.condition && p.store_id === newItem.store_id && p.return_type === newItem.return_type);
-             if (existing) {
-               return prev.map(p => p.id === existing.id ? { ...p, quantity: p.quantity + newItem.quantity } : p);
-             }
-             return [newItem, ...prev];
-          });
+          const existing = tempFoundItems.find(p => p.variant_id === newItem.variant_id && p.product_id === newItem.product_id && p.condition === newItem.condition && p.store_id === newItem.store_id && p.return_type === newItem.return_type);
+          if (existing) {
+            existing.quantity += newItem.quantity;
+          } else {
+            tempFoundItems.push(newItem);
+          }
           successCount++;
         } else {
           errorCount++;
-          setUnfoundItems(prev => {
-             const existing = prev.find(p => p.barcode === item.barcode);
-             if (existing) return prev.map(p => p.barcode === item.barcode ? { ...p, quantity: p.quantity + item.quantity } : p);
-             return [...prev, { barcode: item.barcode, quantity: item.quantity }];
-          });
-          toast.error(`Shtrix kod topilmadi: ${item.barcode}`);
+          const existing = tempUnfoundItems.find(p => p.barcode === item.barcode);
+          if (existing) {
+             existing.quantity += item.quantity;
+          } else {
+             tempUnfoundItems.push({ barcode: item.barcode, quantity: item.quantity });
+          }
         }
       } // end of for loop over parsedData.items
 
-      if (successCount > 0) {
-        toast.success(`${successCount} turdagi mahsulot muvaffaqiyatli topildi!`);
-      }
+      // QATIY QOIDA: Agar kamida 1 ta xato bo'lsa ham hech qaysini yuklamaslik
       if (errorCount > 0) {
-        toast.warning(`${errorCount} ta mahsulot bazadan topilmadi.`);
+        setUnfoundItems(tempUnfoundItems);
+        toast.error(`Diqqat! Hujjatdan ${errorCount} turdagi shtrix kod bazadan topilmadi. Barcha yuklash to'xtatildi! Zaxirada ushbu tovarlar borligini tasdiqlang.`, { duration: 8000 });
+      } else if (successCount > 0) {
+        // Hammasi muvaffaqiyatli topshilganida qo'shamiz
+        setItems(prev => {
+          let newItems = [...prev];
+          tempFoundItems.forEach(newItem => {
+             const existing = newItems.find(p => p.variant_id === newItem.variant_id && p.product_id === newItem.product_id && p.condition === newItem.condition && p.store_id === newItem.store_id && p.return_type === newItem.return_type);
+             if (existing) {
+                existing.quantity += newItem.quantity;
+             } else {
+                newItems = [newItem, ...newItems];
+             }
+          });
+          return newItems;
+        });
+        toast.success(`Hujjatdagi barcha ${successCount} turdagi mahsulot muvaffaqiyatli topildi!`);
       }
       
     } catch (err: any) {
