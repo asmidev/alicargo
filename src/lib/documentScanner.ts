@@ -195,6 +195,9 @@ function extractReturnItemsFromText(text: string): ScannedItemResult[] {
       }
     }
 
+    // Agar umuman shtrix kod topilmasa bu qatorni tashlab ketamiz
+    if (!rawBarcode) continue;
+
     // Uzum yoki Yandex barcode lari haqida qayta ishlash
     if (rawBarcode.startsWith('00') && rawBarcode.length >= 10) {
        rawBarcode = '1' + rawBarcode; // Ba'zan boshidagi 1 kesilib qoladi
